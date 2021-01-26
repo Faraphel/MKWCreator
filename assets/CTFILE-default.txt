@@ -1,0 +1,9 @@
+#CT-CODE
+
+[RACING-TRACK-LIST]
+
+%LE-FLAGS = 1
+
+%WIIMM-CUP = 1
+
+N N$SWAP | N$F_WII
