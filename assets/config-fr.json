@@ -1,0 +1,94 @@
+{
+	"cup": {
+		"0": {
+			"name": "Coupe Champignon",
+			"locked": true,
+			"courses": {
+				"0": {"name":"Circuit Luigi", "music": null, "special": null, "new": false},
+				"1": {"name":"Prairie Meuh Meuh", "music": null, "special": null, "new": false},
+				"2": {"name":"Gorge Champignon", "music": null, "special": null, "new": false},
+				"3": {"name":"Usine Toad", "music": null, "special": null, "new": false}
+			}
+		},
+		"1": {
+			"name": "Coupe Carapace",
+			"locked": true,
+			"courses": {
+				"0": {"name":"GCN Plage Peach", "music": null, "special": null, "new": false},
+				"1": {"name":"DS Cascades Yoshi", "music": null, "special": null, "new": false},
+				"2": {"name":"SNES Vallée Fantôme 2", "music": null, "special": null, "new": false},
+				"3": {"name":"N64 Autodrome Mario", "music": null, "special": null, "new": false}
+			}
+		},
+		"2": {
+			"name": "Coupe Fleur",
+			"locked": true,
+			"courses": {
+				"0": {"name":"Circuit Mario", "music": null, "special": null, "new": false},
+				"1": {"name":"Supermarché Coco", "music": null, "special": null, "new": false},
+				"2": {"name":"Pic DK", "music": null, "special": null, "new": false},
+				"3": {"name":"Mine Wario", "music": null, "special": null, "new": false}
+			}
+		},
+		"3": {
+			"name": "Coupe Banane",
+			"locked": true,
+			"courses": {
+				"0": {"name":"N64 Royaume Sorbet", "music": null, "special": null, "new": false},
+				"1": {"name":"GBA Plage Maskass", "music": null, "special": null, "new": false},
+				"2": {"name":"DS Quartier Delfino", "music": null, "special": null, "new": false},
+				"3": {"name":"GCN Stade Waluigi", "music": null, "special": null, "new": false}
+			}
+		},
+		"4": {
+			"name": "Coupe Etoile",
+			"locked": true,
+			"courses": {
+				"0": {"name":"Circuit Daisy", "music": null, "special": null, "new": false},
+				"1": {"name":"Cap Koopa", "music": null, "special": null, "new": false},
+				"2": {"name":"Bois Vermeil", "music": null, "special": null, "new": false},
+				"3": {"name":"Volcan Grondant", "music": null, "special": null, "new": false}
+			}
+		},
+		"5": {
+			"name": "Coupe Feuille",
+			"locked": true,
+			"courses": {
+				"0": {"name":"DS Désert du Soleil", "music": null, "special": null, "new": false},
+				"1": {"name":"GBA Château de Bowser 3", "music": null, "special": null, "new": false},
+				"2": {"name":"N64 Jungle DK", "music": null, "special": null, "new": false},
+				"3": {"name":"GCN Circuit Mario", "music": null, "special": null, "new": false}
+			}
+		},
+		"6": {
+			"name": "Coupe Couronne",
+			"locked": true,
+			"courses": {
+				"0": {"name":"Ruines Sec Sec", "music": null, "special": null, "new": false},
+				"1": {"name":"Route Clair de Lune", "music": null, "special": null, "new": false},
+				"2": {"name":"Château de Bowser", "music": null, "special": null, "new": false},
+				"3": {"name":"Route Arc-en-Ciel", "music": null, "special": null, "new": false}
+			}
+		},
+		"7": {
+			"name": "Coupe Eclair",
+			"locked": true,
+			"courses": {
+				"0": {"name":"SNES Circuit Mario 3", "music": null, "special": null, "new": false},
+				"1": {"name":"DS Jardin Peach", "music": null, "special": null, "new": false},
+				"2": {"name":"GCN Montagne DK", "music": null, "special": null, "new": false},
+				"3": {"name":"N64 Château de Bowser", "music": null, "special": null, "new": false}
+			}
+		},
+		"8": {
+			"name": "Aléatoire",
+			"locked": true,
+			"courses": {
+				"0": {"name":"Aléatoire: Toutes les pistes", "music": null, "special": null, "new": false},
+				"1": {"name":"Aléatoire: Pistes Originales", "music": null, "special": null, "new": false},
+				"2": {"name":"Aléatoire: Custom Tracks", "music": null, "special": null, "new": false},
+				"3": {"name":"Aléatoire: Pistes Nouvelles", "music": null, "special": null, "new": false}
+			}
+		}
+	}
+}

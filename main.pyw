@@ -4,14 +4,17 @@ import os
 import subprocess
 import shutil
 from threading import Thread
+from PIL import Image, ImageTk
+import json
 
 class main():
     def __init__(self):
         self.root = Tk()
         self.root.title("MKWii Creator")
+        self.root.resizable(False, False)
 
         self.frame_SelectGameFile = LabelFrame(self.root, text="Fichier du jeu")
-        self.frame_SelectGameFile.grid(row=1, column=1, sticky="NEWS")
+        self.frame_SelectGameFile.grid(row=1, column=1)
         Label(self.frame_SelectGameFile, text="Sélectionné la ROM (.iso, .wbfs, main.dol de votre MKWii)").grid(row=1, column=1, columnspan=2, sticky="NEWS")
         self.entry_SelectGameFile = Entry(self.frame_SelectGameFile, width = 50)
         self.entry_SelectGameFile.grid(row=2, column=1, sticky="NEWS")
@@ -30,24 +33,45 @@ class main():
 
 
         self.frame_CupManager = LabelFrame(self.root, text="Coupe")
-        self.button_CupManagerLeft = Button(self.frame_CupManager, width=2, text="<")
-        self.button_CupManagerLeft.grid(row=1, column=1, rowspan=2, sticky="NEWS")
+        self.cup_offset = 0
+        Label(self.frame_CupManager, text="Choississez la coupe à modifier :").grid(row=1, column=1, columnspan=10)
+        self.button_CupManagerLeft = Button(self.frame_CupManager, width=2, text="<", command=self.cup_left, relief=RIDGE)
+        self.button_CupManagerLeft.grid(row=2, column=1, rowspan=2, sticky="NEWS")
 
         self.button_CupManager = []
+        self.button_CupManagerImg = {}
         for x in range(4):
             for y in range(2):
-                self.button_CupManager.append(Button(self.frame_CupManager, text=(x*2)+y, width=6, height=3))
-                self.button_CupManager[-1].grid(row=y+1, column=x+2)
+                self.button_CupManager.append(Button(self.frame_CupManager, width=64, height=64, bg="black"))
+                self.button_CupManager[-1].grid(row=y+2, column=x+2)
 
-        self.button_CupManagerRight = Button(self.frame_CupManager, width=2, text=">")
-        self.button_CupManagerRight.grid(row=1, column=6, rowspan=2, sticky="NEWS")
+        self.button_CupManagerRight = Button(self.frame_CupManager, width=2, text=">", command=self.cup_right, relief=RIDGE)
+        self.button_CupManagerRight.grid(row=2, column=6, rowspan=2, sticky="NEWS")
+
+        self.frame_CupNameManager = Frame(self.frame_CupManager)
+        Label(self.frame_CupNameManager, text="Choississez le nom de la coupe :").grid(row=1, column=1, columnspan=2)
+        self.entry_CupNameManager = Entry(self.frame_CupNameManager, width=40)
+        self.entry_CupNameManager.grid(row=2, column=1, sticky="NEWS")
+        self.button_CupNameManager = Button(self.frame_CupNameManager, text="Sauver", width=10, relief=RIDGE)
+        self.button_CupNameManager.grid(row=2, column=2, sticky="NEWS")
+
+        self.frame_CupIconManager = Frame(self.frame_CupManager)
+        Label(self.frame_CupIconManager, text="Choississez l'icone de la coupe :").grid(row=1, column=1)
+        self.button_CupIconManager = Button(self.frame_CupIconManager, width=128, height=128, bg="black")
+        self.button_CupIconManager.grid(row=2, column=1)
 
         self.frame_RaceManager = LabelFrame(self.frame_CupManager, text="Course")
-        self.frame_RaceManager.grid(row=10, column=1, columnspan=6, sticky="NEWS")
+        Label(self.frame_RaceManager, text="Choississez la course à modifier :").grid(row=1, column=1, columnspan=10)
+
         self.button_RaceManager = []
         for x in range(4):
-            self.button_CupManager.append(Button(self.frame_RaceManager, text=x, width=35))
-            self.button_CupManager[-1].grid(row=x, column=1, sticky="NEWS")
+            self.button_RaceManager.append(Button(self.frame_RaceManager, width=45))
+            self.button_RaceManager[x].grid(row=x+2, column=1, sticky="NEWS")
+
+        self.button_DeleteCupManager = Button(self.frame_CupManager, text="Supprimer", fg="red", relief=RIDGE)
+
+        self._add_img_raw = Image.open(f"./assets/add.png")
+        self._add_img = ImageTk.PhotoImage(self._add_img_raw.resize((64, 64)))
 
 
     def ask_game_file(self):
@@ -80,10 +104,10 @@ class main():
 
     def refresh_action_frame(self):
         self.label_GameInformation.config(text = f"chemin du jeu : {self.path}\ntype : {self.file_type}")
-        self.frame_ActionGameFile.grid(row=2, column=1, sticky = "NEWS")
+        self.frame_ActionGameFile.grid(row=2, column=1)
 
         if self.file_type in ["wbfs", "iso"]:
-            self.button_ExtractROM.grid(row=2, column=1, sticky="NEWS")
+            self.button_ExtractROM.grid(row=2, column=1)
             self.button_InstallLECODE.grid_forget()
             self.button_EditROM.grid_forget()
 
@@ -187,20 +211,26 @@ class main():
                 shutil.copy("./assets/video.thp", f"{self.path}/files/thp/course/{file}.thp")
 
             # correction des courses
-            if not(os.path.exists("./.tmp/Track/")): os.makedirs("./.tmp/Track/")
+            if not(os.path.exists(f"{self.path}/files/.MKCreator/Track/")): os.makedirs(f"{self.path}/files/.MKCreator/Track/")
 
 
             for file in os.listdir(f"{self.path}/files/Race/Course/"):
                 if os.path.isfile(f"{self.path}/files/Race/Course/{file}"):
                     _, extension = os.path.splitext(file)
                     if extension == ".szs":
-                        shutil.move(f"{self.path}/files/Race/Course/{file}", f"./.tmp/Track/{file}")
+                        shutil.move(f"{self.path}/files/Race/Course/{file}", f"{self.path}/files/.MKCreator/Track/{file}")
 
             # application du patch
             p = subprocess.Popen(f"wlect patch ./assets/lecode-PAL.bin -od \"{self.path}/files/rel/lecode-PAL.bin\" --track-dir "+\
-                                 f"\"{self.path}/files/Race/Course\" --copy-tracks ./.tmp/Track/ --le-define "+\
+                                 f"\"{self.path}/files/Race/Course\" --copy-tracks \"{self.path}/files/.MKCreator/Track/\" --le-define "+\
                                  f"./assets/CTFILE-default.txt --lpar ./assets/lpar-default.txt --overwrite")
             p.wait()
+
+            # création des fichiers nécéssaires pour l'application
+            if not(os.path.exists(f"{self.path}/files/.MKCreator")): os.makedirs(f"{self.path}/files/.MKCreator")
+            shutil.copytree("./assets/cup_icon/", f"{self.path}/files/.MKCreator/cup_icon/")
+            shutil.copy("./assets/config-fr.json", f"{self.path}/files/.MKCreator/config.json")
+
 
             self.progressbar_Action.grid_forget()
             self.refresh_action_frame()
@@ -210,9 +240,260 @@ class main():
 
     def edit_game(self):
         self.frame_CupManager.grid(row=1, column=2, rowspan=2, sticky="NEWS")
+        with open(f"{self.path}/files/.MKCreator/config.json", "rb") as file:
+            self.config = json.load(file)
+        self.refresh_cup_menu()
 
-#TODO: wimgt encode "src" --DEST "dst" -x tpl.CMPR    pour convertir un .png en .tpl
-#TODO: Menu pour créer des coupes & configurer les courses
+
+    def refresh_cup_menu(self):
+        for x in range(4):
+            for y in range(2):
+                pos_index = (x * 2) + y
+                index = pos_index + (self.cup_offset * 2)
+
+                if str(index) in self.config["cup"]:
+                    self.button_CupManagerImg[index] = ImageTk.PhotoImage(Image.open(f"{self.path}/files/.MKCreator/cup_icon/{index}.png").resize((64,64)))
+                    self.button_CupManager[pos_index].config(image=self.button_CupManagerImg[index], command=lambda i=index:self.select_cup(i), bg="black")
+
+                else:
+                    self.button_CupManager[pos_index].config(image=self._add_img, bg="gray", command=self.create_new_cup)
+                    self.button_CupManager[pos_index].grid(row=y+2, column=x+2)
+
+
+    def cup_left(self):
+        if self.cup_offset > 0:
+            self.cup_offset -=1
+            self.refresh_cup_menu()
+
+
+    def cup_right(self):
+        if self.cup_offset < (len(self.config["cup"]) // 2 - 3):
+            self.cup_offset +=1
+            self.refresh_cup_menu()
+
+
+    def select_cup(self, index):
+        self.frame_CupNameManager.grid(row=10, column=1, columnspan=10)
+        self.frame_CupIconManager.grid(row=20, column=1, columnspan=10)
+        self.frame_RaceManager.grid(row=100, column=1, columnspan=6, sticky="NEWS")
+        self.button_DeleteCupManager.grid(row=101,column=1,columnspan=10, sticky="W")
+
+        _cup_config = self.config["cup"][str(index)]
+
+        self.entry_CupNameManager.config(state=NORMAL)
+        self.entry_CupNameManager.delete(0, END)
+        self.entry_CupNameManager.insert(0, _cup_config["name"])
+
+        self.button_CupNameManager.config(command=lambda i=index:self.change_cup_name(i))
+        self.button_DeleteCupManager.config(command=lambda i=index:self.delete_cup(i))
+
+        self._selected_cup_img = ImageTk.PhotoImage(Image.open(f"{self.path}/files/.MKCreator/cup_icon/{index}.png"))
+        self.button_CupIconManager.config(image=self._selected_cup_img, command=lambda i=index:self.select_new_cup_icon(i))
+
+        if _cup_config["locked"]:
+            self.entry_CupNameManager.config(state=DISABLED)
+            self.button_CupIconManager.config(state=DISABLED)
+            self.button_DeleteCupManager.config(state=DISABLED)
+            self.button_CupNameManager.config(state=DISABLED)
+        else:
+            self.button_CupIconManager.config(state=NORMAL)
+            self.button_DeleteCupManager.config(state=NORMAL)
+            self.button_CupNameManager.config(state=NORMAL)
+
+        for x in range(4):
+            self.button_RaceManager[x].config(text=_cup_config["courses"][str(x)]["name"], command=lambda t=index,r=x:self.edit_track(t,r))
+            if _cup_config["locked"]: self.button_RaceManager[x].config(state=DISABLED)
+            else: self.button_RaceManager[x].config(state=NORMAL)
+
+
+    def create_new_cup(self):
+        tl = Toplevel()
+        tl.title("Nouvelle Coupe")
+        tl.resizable(False, False)
+
+        new_icon = self._add_img_raw
+        new_icon_tk = self._add_img
+
+        def select_icon():
+            nonlocal new_icon, new_icon_tk
+            path = filedialog.askopenfilename()
+            if path:
+                if os.path.exists(path):
+                    new_icon = Image.open(path)
+                    new_icon_tk = ImageTk.PhotoImage(new_icon)
+                    button_NewCupIcon.config(image=new_icon_tk)
+
+        Label(tl, text="Choississez un nom pour votre coupe :").grid(row=1, column=1)
+        entry_NewCupName = Entry(tl)
+        entry_NewCupName.grid(row=2,column=1,sticky="NEWS")
+        Label(tl, text="Choississez une icone pour votre coupe :").grid(row=3, column=1)
+        button_NewCupIcon = Button(tl, image=self._add_img, command=select_icon)
+        button_NewCupIcon.grid(row=4, column=1)
+
+        def confirm():
+            nonlocal new_icon
+            cup_name = entry_NewCupName.get()
+            if cup_name.replace(" ", "") != "":
+
+                cup_id = len(self.config["cup"])
+
+                new_icon.save(f"{self.path}/files/.MKCreator/cup_icon/{cup_id}.png")
+                self.config["cup"][str(cup_id)] = {
+                    "name": cup_name,
+                    "locked": False,
+                    "courses": {
+                        "0": {"name":"/", "music": 0x75, "special": 0x08, "new": False},
+                        "1": {"name":"/", "music": 0x75, "special": 0x08, "new": False},
+                        "2": {"name":"/", "music": 0x75, "special": 0x08, "new": False},
+                        "3": {"name":"/", "music": 0x75, "special": 0x08, "new": False},
+                    }
+                }
+                self.save_config()
+                self.refresh_cup_menu()
+                tl.destroy()
+
+            else:
+                messagebox.showerror("Erreur", "Veuillez choisir un nom pour votre coupe.")
+
+        Button(tl, text="Confirmer", relief=RIDGE, command = confirm).grid(row=5, column=1, sticky="E")
+
+
+    def select_new_cup_icon(self, index):
+        path = filedialog.askopenfilename()
+        if path:
+            if os.path.exists(path):
+                shutil.copy(path, f"{self.path}/files/.MKCreator/cup_icon/{index}.png")
+                self._selected_cup_img = ImageTk.PhotoImage(Image.open(path))
+                self.button_CupIconManager.config(image=self._selected_cup_img)
+                self.refresh_cup_menu()
+            else:
+                messagebox.showerror("Erreur", "Ce fichier n'existe pas.")
+
+
+    def change_cup_name(self, index):
+        self.config["cup"][str(index)]["name"] = self.entry_CupNameManager.get()
+        self.save_config()
+
+
+    def delete_cup(self, index):
+        ans = messagebox.askyesno("Confirmer", f"Voulez-vous vraiment supprimer la coupe {self.config['cup'][str(index)]['name']} ?")
+        if ans:
+            total_cup = len(self.config["cup"])
+            os.remove(f"{self.path}/files/.MKCreator/cup_icon/{index}.png")
+            self.config["cup"].pop(str(index))
+
+            for i in range(index+1, total_cup):
+                self.config["cup"][str(i-1)] = self.config["cup"].pop(str(i))
+
+                os.rename(f"{self.path}/files/.MKCreator/cup_icon/{i}.png", f"{self.path}/files/.MKCreator/cup_icon/{i-1}.png")
+
+            self.save_config()
+            self.refresh_cup_menu()
+
+
+    def edit_track(self, cup_index, course_index):
+        tl = Toplevel()
+        tl.title("Modifier la course")
+        tl.resizable(False, False)
+
+        track2ID = {
+            "Circuit Luigi (slot 1.1)": [0x75, 0x08],
+            "Prairie Meuh Meuh (slot 1.2)": [0x77, 0x01],
+            "Gorge Champignon (slot 1.3)": [0x79, 0x02],
+            "Usine Toad (slot 1.4)": [0x7B, 0x04],
+
+            "Circuit Mario (slot 2.1)": [0x7D, 0x00],
+            "Supermarché Coco (slot 2.2)": [0x7F, 0x05],
+            "Pic DK (slot 2.3)": [0x81, 0x06],
+            "Mine Wario (slot 2.4)": [0x83, 0x07],
+
+            "Circuit Daisy (slot 3.1)": [0x87, 0x09],
+            "Cap Koopa (slot 3.2)": [0x85, 0x0F],
+            "Bois Vermeil (slot 3.3)": [0x8F, 0x0B],
+            "Volcan Grondant (slot 3.4)": [0x8B, 0x03],
+
+            "Ruines Sec Sec (slot 4.1)": [0x89, 0x0E],
+            "Route Clair de Lune (slot 4.2)": [0x8D, 0x0A],
+            "Château de Bowser (slot 4.3)": [0x91, 0x0C],
+            "Route Arc-en-Ciel (slot 4.4)": [0x93, 0x0D],
+
+            "GCN Plage Peach (slot 5.1)": [0xA5, 0x10],
+            "DS Cascades Yoshi (slot 5.2)": [0xAD, 0x14],
+            "SNES Vallée Fantôme 2 (slot 5.3)": [0x97, 0x19],
+            "N64 Autodrome Mario (slot 5.4)": [0x9F, 0x1A],
+
+            "N64 Royaume Sorbet (slot 6.1)": [0x9D, 0x1B],
+            "GBA Plage Maskass (slot 6.2)": [0x95, 0x1F],
+            "DS Quartier Delfino (slot 6.3)": [0xAF, 0x17],
+            "GCN Stade Waluigi (slot 6.4)": [0xA9, 0x12],
+
+            "DS Désert du Soleil (slot 7.1)": [0xB1, 0x15],
+            "GBA Château de Bowser 3 (slot 7.2)":[0x9B, 0x1E],
+            "N64 Jungle DK (slot 7.3)": [0xA1, 0x1D],
+            "GCN Circuit Mario (slot 7.4)": [0xA7, 0x11],
+
+            "SNES Circuit Mario 3 (slot 8.1)": [0x99, 0x18],
+            "DS Jardin Peach (slot 8.2)": [0xB3, 0x16],
+            "GCN Montagne DK (slot 8.3)": [0xAB, 0x13],
+            "N64 Château de Bowser (slot 8.4)": [0xA3, 0x1C],
+
+            "Block Plaza (battle slot 1.1)": [0xB7, 0x21],
+            "Quai Delfino (battle slot 1.2)": [0xB5, 0x20],
+            "Stade de Funky Kong (battle slot 1.3)": [0xB9, 0x23],
+            "Roulette Chomp (battle slot 1.4)": [0xBB, 0x22],
+            "Désert Thwomp (battle slot 1.5)": [0xBD, 0x24],
+
+            "SNES Circuit de Bataille 4 (battle slot 2.1)": [0xC3, 0x27],
+            "GBA Circuit de Bataille 3 (battle slot 2.2)": [0xC5, 0x28],
+            "N64 Gratte-ciel (battle slot 2.3)": [0xC7, 0x29],
+            "GCN Cookie Arena (battle slot 2.4)": [0xBF, 0x25],
+            "DS Maison de l'Aube (battle slot 2.5)": [0xC1, 0x26],
+
+            "Colisée Galactique": [0xC9, 0x36],
+        }
+
+        def select_file():
+            path = filedialog.askopenfilename()
+            if path:
+                if os.path.exists(path):
+                    name = path.split("/")[-1].replace("_", " ").replace(".szs", "")
+                    entry_CoursePath.delete(0, END)
+                    entry_CoursePath.insert(0, path)
+                    entry_CourseName.delete(0, END)
+                    entry_CourseName.insert(0, name)
+                else:
+                    messagebox.showerror("Erreur", "Ce fichier n'existe pas.")
+
+        Label(tl, text="Fichier du jeu :").grid(row=1, column=1)
+        entry_CoursePath = Entry(tl, width=40)
+        entry_CoursePath.grid(row=2, column=1, sticky="NEWS")
+        Button(tl, text="...", relief=RIDGE, command=select_file).grid(row=2, column=2, sticky="NEWS")
+
+        Label(tl, text="Nom de la course :").grid(row=3, column=1, columnspan=2)
+        entry_CourseName = Entry(tl, width=50)
+        entry_CourseName.grid(row=4, column=1, sticky="NEWS", columnspan=2)
+
+        Label(tl, text="Musique de la course :").grid(row=5, column=1, columnspan=2)
+        listbox_MusicType = ttk.Combobox(tl, width=50, values=list(track2ID.keys()))
+        listbox_MusicType.current(0)
+        listbox_MusicType.grid(row=6, column=1, sticky="NEWS", columnspan=2)
+
+        Label(tl, text="Type de la course :\n(généralement indiqué par son créateur)\n(si non spécifié, choisir slot 1.1)").grid(row=7, column=1, columnspan=2)
+        listbox_TrackType = ttk.Combobox(tl, width=50, values=list(track2ID.keys()))
+        listbox_TrackType.current(0)
+        listbox_TrackType.grid(row=8, column=1, sticky="NEWS", columnspan=2)
+
+        Checkbutton(tl, text="marqué comme étant nouveau").grid(row=9, column=1, columnspan=2)
+
+
+    def save_config(self):
+        with open(f"{self.path}/files/.MKCreator/config.json", "w") as file:
+            json.dump(self.config, file)
+
+
+#TODO: wimgt encode "src" --DEST "dst" -x tpl.CMPR    - pour convertir un .png en .tpl
+#TODO: sélectionné un fichier force à choisir un type valide
+#TODO: chargement de la partie d'injection améliorer (barre de chargement, ...)
 
 Main = main()
 mainloop()
