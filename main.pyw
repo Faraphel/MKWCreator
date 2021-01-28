@@ -28,8 +28,10 @@ class main():
         self.label_GameInformation.grid(row=1, column=1)
         self.button_ExtractROM = Button(self.frame_ActionGameFile, text="Extraire le jeu", relief=RIDGE, command=self.extract_game)
         self.button_InstallLECODE = Button(self.frame_ActionGameFile, text="Installer LE-CODE", relief=RIDGE, command=self.install_lecode)
-        self.button_EditROM = Button(self.frame_ActionGameFile, text="Modifier la ROM", relief=RIDGE, command=self.edit_game)
+        self.button_EditROM = Button(self.frame_ActionGameFile, text="Modifier la configuration", relief=RIDGE, command=self.edit_game)
+        self.button_PatchROM = Button(self.frame_ActionGameFile, text="Patcher le jeu", relief=RIDGE, command=self.patch_game)
         self.progressbar_Action = ttk.Progressbar(self.frame_ActionGameFile)
+        self.label_Action = Label(self.frame_ActionGameFile)
 
 
         self.frame_CupManager = LabelFrame(self.root, text="Coupe")
@@ -75,7 +77,7 @@ class main():
 
 
     def ask_game_file(self):
-        path = filedialog.askopenfilename()
+        path = filedialog.askopenfilename(filetypes = (("Jeu Wii", r"*.iso *.wbfs main.dol"),))
         if path:
             self.entry_SelectGameFile.delete(0, END)
             self.entry_SelectGameFile.insert(END, path)
@@ -104,22 +106,25 @@ class main():
 
     def refresh_action_frame(self):
         self.label_GameInformation.config(text = f"chemin du jeu : {self.path}\ntype : {self.file_type}")
-        self.frame_ActionGameFile.grid(row=2, column=1)
+        self.frame_ActionGameFile.grid(row=2, column=1, sticky = "NEWS")
 
         if self.file_type in ["wbfs", "iso"]:
-            self.button_ExtractROM.grid(row=2, column=1)
+            self.button_ExtractROM.grid(row=2, column=1, sticky = "NEWS")
             self.button_InstallLECODE.grid_forget()
             self.button_EditROM.grid_forget()
+            self.button_PatchROM.grid_forget()
 
         else:
             self.button_ExtractROM.grid_forget()
-            if os.path.exists(f"{self.path}/files/rel/lecode-PAL.bin"):
+            if os.path.exists(f"{self.path}/files/.MKCreator/"):
                 self.button_InstallLECODE.grid_forget()
                 self.button_EditROM.grid(row = 4, column = 1, sticky = "NEWS")
+                self.button_PatchROM.grid_forget()
 
             else:
                 self.button_InstallLECODE.grid(row = 3, column = 1, sticky = "NEWS")
                 self.button_EditROM.grid_forget()
+                self.button_PatchROM.grid_forget()
 
 
     def extract_game(self):
@@ -127,6 +132,8 @@ class main():
             dir = filedialog.askdirectory()
             if dir:
                 self.progressbar_Action.grid(row = 100, column = 1, sticky = "NEWS")
+                self.label_Action.grid(row = 101, column = 1, sticky = "NEWS")
+                self.label_Action.config(text = "Extraction du jeu en cours...")
                 self.button_ExtractROM.grid_forget()
 
                 self.progressbar_Action.config(mode="indeterminate")
@@ -136,6 +143,7 @@ class main():
                 p.wait()
 
                 self.progressbar_Action.grid_forget()
+                self.label_Action.grid_forget()
                 self.path = dir
                 self.file_type = "dol"
                 self.refresh_action_frame()
@@ -148,16 +156,22 @@ class main():
             # visuel
             self.progressbar_Action.grid(row = 100, column = 1, sticky = "NEWS")
             self.progressbar_Action.config(mode = "determinate")
-            self.progressbar_Action['maximum'] = 100
+            self.label_Action.grid(row = 101, column = 1, sticky = "NEWS")
+            self.progressbar_Action.stop()
+            self.progressbar_Action['maximum'] = 56
             self.progressbar_Action["value"] = 0
             self.button_InstallLECODE.grid_forget()
 
             # commande de patch
+            self.label_Action.config(text="Modification de main.dol...")
+            self.progressbar_Action.step(1)
             p = subprocess.Popen(f"wstrt patch \"{self.path}/sys/main.dol\" --clean-dol --add-lecode", shell=True)
             p.wait()
 
             # patch des menus
             for file in ["Award", "Channel", "Event", "Globe", "MenuMulti", "MenuOther", "MenuSingle", "Present", "Race", "Title"]:
+                self.label_Action.config(text=f"Extraction du fichier {file}.szs...")
+                self.progressbar_Action.step(1)
                 p = subprocess.Popen(f"wszst EXTRACT \"{self.path}/files/Scene/UI/{file}.szs\" --DEST \"./.tmp/{file}\"")
                 p.wait()
 
@@ -172,14 +186,19 @@ class main():
                 }
 
                 for subfile in replace_path:
+                    self.label_Action.config(text=f"Remplacement des fichiers de {file}.szs ({subfile})...")
                     if os.path.exists(subfile): shutil.copy(f"./assets/{replace_path[subfile]}", subfile)
 
                 if file in ["Channel", "MenuMulti", "MenuSingle"]:
+                    self.label_Action.config(text=f"Remplacement des icones de {file}.szs...")
+                    self.progressbar_Action.step(1)
                     shutil.copy(f"./assets/ct_icons-default.tpl", f"./.tmp/{file}/button/timg/ct_icons.tpl")
                     shutil.copy(f"./assets/ct_icons-default.tpl", f"./.tmp/{file}/control/timg/ct_icons.tpl")
 
                     # patch des fichiers de langage des menus
                     for language in "EFGIS":
+                        self.label_Action.config(text=f"Remplacement des fichiers langues de {file}_{language}.szs...")
+                        self.progressbar_Action.step(1)
                         szs_path = f"{self.path}/files/Scene/UI/{file}_{language}.szs"
                         tmp_path = f"./.tmp/{file}_{language}"
                         if os.path.exists(szs_path):
@@ -193,21 +212,25 @@ class main():
                                 p.wait()
                                 os.remove(f"{tmp_path}/message/Common.txt")
 
+                        self.label_Action.config(text=f"Finalisation de {file}_{language}.szs...")
+                        self.progressbar_Action.step(1)
                         p = subprocess.Popen(f"wszst CREATE \"{tmp_path}\" --DEST \"{szs_path}\" --overwrite")
                         p.wait()
 
                         shutil.rmtree(tmp_path)
 
 
+                self.label_Action.config(text=f"Finalisation de {file}.szs...")
+                self.progressbar_Action.step(1)
                 p = subprocess.Popen(f"wszst CREATE \"./.tmp/{file}\" --DEST \"{self.path}/files/Scene/UI/{file}.szs\" --overwrite")
                 p.wait()
 
                 shutil.rmtree(f"./.tmp/{file}")
 
 
-
             # patch des vidéos de présentation
             for file in ["banana", "cup_select", "flower", "kinoko", "konoha", "koura", "special", "star", "thunder"]:
+                self.label_Action.config(text=f"Patch du fichier vidéo {file}...")
                 shutil.copy("./assets/video.thp", f"{self.path}/files/thp/course/{file}.thp")
 
             # correction des courses
@@ -218,9 +241,11 @@ class main():
                 if os.path.isfile(f"{self.path}/files/Race/Course/{file}"):
                     _, extension = os.path.splitext(file)
                     if extension == ".szs":
+                        self.label_Action.config(text=f"Correction de la course {file}...")
                         shutil.move(f"{self.path}/files/Race/Course/{file}", f"{self.path}/files/.MKCreator/Track/{file}")
 
             # application du patch
+            self.label_Action.config(text=f"Patch de LE-CODE.bin")
             p = subprocess.Popen(f"wlect patch ./assets/lecode-PAL.bin -od \"{self.path}/files/rel/lecode-PAL.bin\" --track-dir "+\
                                  f"\"{self.path}/files/Race/Course\" --copy-tracks \"{self.path}/files/.MKCreator/Track/\" --le-define "+\
                                  f"./assets/CTFILE-default.txt --lpar ./assets/lpar-default.txt --overwrite")
@@ -233,6 +258,7 @@ class main():
 
 
             self.progressbar_Action.grid_forget()
+            self.label_Action.grid_forget()
             self.refresh_action_frame()
 
         Thread(target=main).start()
@@ -246,6 +272,8 @@ class main():
 
 
     def refresh_cup_menu(self):
+        self.button_PatchROM.grid(row = 5, column = 1, sticky = "NEWS")
+
         for x in range(4):
             for y in range(2):
                 pos_index = (x * 2) + y
@@ -316,11 +344,12 @@ class main():
 
         def select_icon():
             nonlocal new_icon, new_icon_tk
-            path = filedialog.askopenfilename()
+            path = filedialog.askopenfilename(filetypes = (("Icone coupe", r"*.png"),))
+            tl.focus_force()
             if path:
                 if os.path.exists(path):
-                    new_icon = Image.open(path)
-                    new_icon_tk = ImageTk.PhotoImage(new_icon)
+                    new_icon = Image.open(path).resize((128,128))
+                    new_icon_tk = ImageTk.PhotoImage(new_icon.resize((64,64)))
                     button_NewCupIcon.config(image=new_icon_tk)
 
         Label(tl, text="Choississez un nom pour votre coupe :").grid(row=1, column=1)
@@ -351,6 +380,7 @@ class main():
                 self.save_config()
                 self.refresh_cup_menu()
                 tl.destroy()
+                self.root.focus_force()
 
             else:
                 messagebox.showerror("Erreur", "Veuillez choisir un nom pour votre coupe.")
@@ -359,11 +389,12 @@ class main():
 
 
     def select_new_cup_icon(self, index):
-        path = filedialog.askopenfilename()
+        path = filedialog.askopenfilename(filetypes = (("Icone coupe", r"*.png"),))
         if path:
             if os.path.exists(path):
-                shutil.copy(path, f"{self.path}/files/.MKCreator/cup_icon/{index}.png")
-                self._selected_cup_img = ImageTk.PhotoImage(Image.open(path))
+                _cup_img = Image.open(path).resize((128,128))
+                _cup_img.save(f"{self.path}/files/.MKCreator/cup_icon/{index}.png")
+                self._selected_cup_img = ImageTk.PhotoImage(_cup_img)
                 self.button_CupIconManager.config(image=self._selected_cup_img)
                 self.refresh_cup_menu()
             else:
@@ -453,7 +484,8 @@ class main():
         }
 
         def select_file():
-            path = filedialog.askopenfilename()
+            path = filedialog.askopenfilename(filetypes = (("Fichier course", r"*.szs"),))
+            tl.focus_force()
             if path:
                 if os.path.exists(path):
                     name = path.split("/")[-1].replace("_", " ").replace(".szs", "")
@@ -483,17 +515,190 @@ class main():
         listbox_TrackType.current(0)
         listbox_TrackType.grid(row=8, column=1, sticky="NEWS", columnspan=2)
 
-        Checkbutton(tl, text="marqué comme étant nouveau").grid(row=9, column=1, columnspan=2)
+        Bool_isTrackNew = BooleanVar(value=False)
+        checkbutton_TrackNew = Checkbutton(tl, text="Marqué comme étant nouveau", variable=Bool_isTrackNew)
+        checkbutton_TrackNew.grid(row=9, column=1, columnspan=2)
+
+        def confirm():
+            if os.path.exists(entry_CoursePath.get()):
+                _formated_name = entry_CourseName.get().replace(" ", "")
+                if (_formated_name != "") and (_formated_name != "/"):
+                    if listbox_MusicType.get() in track2ID:
+                        if listbox_TrackType.get() in track2ID:
+
+                            if not(os.path.exists(f"{self.path}/files/.MKCreator/Track/")):
+                                os.makedirs(f"{self.path}/files/.MKCreator/Track/")
+
+                            shutil.copy(entry_CoursePath.get(), f"{self.path}/files/.MKCreator/Track/{entry_CourseName.get()}.szs")
+                            self.config["cup"][str(cup_index)]["courses"][str(course_index)] = {
+                                "name": entry_CourseName.get(),
+                                "music": track2ID[listbox_MusicType.get()][0],
+                                "special": track2ID[listbox_TrackType.get()][1],
+                                "new": Bool_isTrackNew.get(),
+                            }
+                            self.save_config()
+                            self.select_cup(cup_index)
+                            tl.destroy()
+                            self.root.focus_force()
+
+                        else: messagebox.showerror("Erreur", "Le type spécial de la map est invalide.")
+                    else: messagebox.showerror("Erreur", "La musique de la map est invalide.")
+                else: messagebox.showerror("Erreur", "Le nom de la course doit être défini.")
+            else: messagebox.showerror("Erreur", "Vous devez sélectionner le fichier .szs de la course.")
+
+        Button(tl, text="Confirmer", command=confirm, relief=RIDGE).grid(row=10,column=1, columnspan=2, sticky="E")
+
+
+    def patch_game(self):
+        def main():
+            self.progressbar_Action.grid(row = 100, column = 1, sticky = "NEWS")
+            self.label_Action.grid(row = 101, column = 1)
+            self.label_Action.config(text=f"Préparation...")
+            self.button_EditROM.grid_forget()
+            self.button_PatchROM.grid_forget()
+            self.progressbar_Action.config(mode = "determinate")
+            self.progressbar_Action.stop()
+            self.progressbar_Action['maximum'] = 31
+            self.progressbar_Action["value"] = 0
+
+            LE_CODE = ""
+            TEXT_DATA = [
+                {"slot": "703e", "name": "Aléatoire: Toutes les pistes"},
+                {"slot": "703f", "name": "Aléatoire: Pistes Originales"},
+                {"slot": "7040", "name": "Aléatoire: Custom Tracks"},
+                {"slot": "7041", "name": "Aléatoire: Pistes Nouvelles"},
+            ]
+            text_index = 0
+            total_cup = len(self.config["cup"])
+            ct_icon = Image.new("RGBA", (128, 128*(total_cup+2)))
+            base = Image.open("./assets/ct_icons-base.png")
+            ct_icon.paste(base, (0, 0))
+
+            for cup in self.config["cup"]:
+                self.label_Action.config(text=f"Configuration de la coupe {cup}...")
+                self.progressbar_Action.step(1)
+                cup_icon = Image.open(f"{self.path}/files/.MKCreator/cup_icon/{cup}.png")
+                ct_icon.paste(cup_icon, (0, (int(cup)+2)*128))
+
+                if not(cup in ["0","1","2","3","4","5","6","7","8"]):
+                    _cup_config = self.config["cup"][cup]
+                    LE_CODE += f"\n\nC \"{_cup_config['name']}\""
+
+                    for course in _cup_config["courses"]:
+                        _course_config = _cup_config["courses"][course]
+                        self.label_Action.config(text=f"Configuration de la course {_course_config['name']} (coupe {cup})...")
+                        self.progressbar_Action.step(1)
+
+                        flag = "0x00"
+                        if _course_config["new"]: flag = "0x01"
+
+                        LE_CODE += f"\nT {_course_config['music']};"+\
+                                   f" {hex(_course_config['special'])};"+\
+                                   f" {flag};"+\
+                                   f" \"{_course_config['name']}\";"+\
+                                   f" \"{_course_config['name']}\";"+\
+                                   f" \"\""
+
+                        TEXT_DATA.append({"slot": format(0x7044 + text_index, '02x'), "name": _course_config['name']})
+                        text_index += 1
+
+                        if _course_config["name"] == "/":
+                            messagebox.showerror("Erreur", f"Une course semble ne pas avoir été configuré "+\
+                                                 f"dans la coupe {_cup_config['name']} (slot {course})")
+
+                            self.progressbar_Action.grid_forget()
+                            self.label_Action.grid_forget()
+                            return
+
+
+            self.label_Action.config(text=f"Création du fichier CTFILE.txt...")
+            self.progressbar_Action.step(1)
+            shutil.copy("./assets/CTFILE-default.txt", f"{self.path}/files/.MKCreator/CTFILE.txt")
+            with open(f"{self.path}/files/.MKCreator/CTFILE.txt", "a") as CTFile:
+                CTFile.write(LE_CODE)
+
+
+            self.label_Action.config(text=f"Configuration des icones...")
+            self.progressbar_Action.step(1)
+            ct_icon.save(f"{self.path}/files/.MKCreator/ct_icons.png")
+            p = subprocess.Popen(f"wimgt encode \"{self.path}/files/.MKCreator/ct_icons.png\" "+\
+                                 f"--DEST \"{self.path}/files/.MKCreator/ct_icons.tpl\" -x tpl.CMPR --overwrite")
+            p.wait()
+
+            for file in ["Channel", "MenuMulti", "MenuSingle"]:
+                self.label_Action.config(text=f"Configuration des icones {file}.szs...")
+                self.progressbar_Action.step(1)
+
+                p = subprocess.Popen(f"wszst EXTRACT \"{self.path}/files/Scene/UI/{file}.szs\" --DEST \"./.tmp/{file}\"")
+                p.wait()
+
+                shutil.copy(f"{self.path}/files/.MKCreator/ct_icons.tpl", f"./.tmp/{file}/button/timg/ct_icons.tpl")
+                shutil.copy(f"{self.path}/files/.MKCreator/ct_icons.tpl", f"./.tmp/{file}/control/timg/ct_icons.tpl")
+
+                p = subprocess.Popen(f"wszst CREATE \"./.tmp/{file}\" --DEST \"{self.path}/files/Scene/UI/{file}.szs\" --overwrite")
+                p.wait()
+                shutil.rmtree(f"./.tmp/{file}")
+
+                for language in "EFGIS":
+                    self.label_Action.config(text=f"Configuration des icones {file}_{language}.szs...")
+                    self.progressbar_Action.step(1)
+                    szs_path = f"{self.path}/files/Scene/UI/{file}_{language}.szs"
+                    tmp_path = f"./.tmp/{file}_{language}"
+                    if os.path.exists(szs_path):
+                        p = subprocess.Popen(f"wszst EXTRACT \"{szs_path}\" --DEST \"{tmp_path}\"")
+                        p.wait()
+                        if os.path.exists(f"{tmp_path}/message/Common.bmg"):
+                            p = subprocess.Popen(f"wbmgt decode \"{tmp_path}/message/Common.bmg\" --overwrite")
+                            p.wait()
+
+                            with open(f"{tmp_path}/message/Common.txt", "a+") as CommonFile:
+                                for line in CommonFile.readlines():
+                                    for TEXT in TEXT_DATA:
+                                        print(line[len(f"  {TEXT['slot']}"):])
+                                        if line[len(f"  {TEXT['slot']}"):] == f"  {TEXT['slot']}":
+                                            if line != f"\n  {TEXT['slot']}\t= {TEXT['name']}":
+                                                pointer = CommonFile.tell()
+                                                CommonFile.write(f"\n  {TEXT['slot']}\t= {TEXT['name']}")
+                                                CommonFile.seek(pointer)
+                                                TEXT_DATA.pop(TEXT)
+
+                                for TEXT in TEXT_DATA:
+                                    CommonFile.write(f"\n  {TEXT['slot']}\t= {TEXT['name']}")
+
+                            p = subprocess.Popen(f"wbmgt encode \"{tmp_path}/message/Common.txt\" --overwrite --le-code")
+                            p.wait()
+                            os.remove(f"{tmp_path}/message/Common.txt")
+
+                    p = subprocess.Popen(f"wszst CREATE \"{tmp_path}\" --DEST \"{szs_path}\" --overwrite")
+                    p.wait()
+
+                    shutil.rmtree(tmp_path)
+
+
+            self.label_Action.config(text=f"Patch de LE-CODE.bin...")
+            self.progressbar_Action.step(1)
+            p = subprocess.Popen(
+                f"wlect patch ./assets/lecode-PAL.bin -od \"{self.path}/files/rel/lecode-PAL.bin\" --track-dir " + \
+                f"\"{self.path}/files/Race/Course\" --copy-tracks \"{self.path}/files/.MKCreator/Track/\" --le-define " + \
+                f"\"{self.path}/files/.MKCreator/CTFILE.txt\" --lpar ./assets/lpar-default.txt --overwrite")
+            p.wait()
+
+            self.progressbar_Action.grid_forget()
+            self.label_Action.grid_forget()
+            self.button_EditROM.grid(row = 4, column = 1, sticky = "NEWS")
+            self.button_PatchROM.grid(row = 5, column = 1, sticky = "NEWS")
+
+
+        Thread(target=main).start()
 
 
     def save_config(self):
         with open(f"{self.path}/files/.MKCreator/config.json", "w") as file:
             json.dump(self.config, file)
 
-
-#TODO: wimgt encode "src" --DEST "dst" -x tpl.CMPR    - pour convertir un .png en .tpl
-#TODO: sélectionné un fichier force à choisir un type valide
-#TODO: chargement de la partie d'injection améliorer (barre de chargement, ...)
+#TODO: Icone CTx pour les icones par défaut de course
+#TODO: Importer des groupes entier de course et de coupe
+#TODO: Vérifier les overwrites pour éviter les bugs
 
 Main = main()
 mainloop()
