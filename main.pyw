@@ -4,8 +4,64 @@ import os
 import subprocess
 import shutil
 from threading import Thread
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 import json
+
+track2ID = {
+    "Circuit Luigi (slot 1.1)": [0x75, 0x08],
+    "Prairie Meuh Meuh (slot 1.2)": [0x77, 0x01],
+    "Gorge Champignon (slot 1.3)": [0x79, 0x02],
+    "Usine Toad (slot 1.4)": [0x7B, 0x04],
+
+    "Circuit Mario (slot 2.1)": [0x7D, 0x00],
+    "Supermarché Coco (slot 2.2)": [0x7F, 0x05],
+    "Pic DK (slot 2.3)": [0x81, 0x06],
+    "Mine Wario (slot 2.4)": [0x83, 0x07],
+
+    "Circuit Daisy (slot 3.1)": [0x87, 0x09],
+    "Cap Koopa (slot 3.2)": [0x85, 0x0F],
+    "Bois Vermeil (slot 3.3)": [0x8F, 0x0B],
+    "Volcan Grondant (slot 3.4)": [0x8B, 0x03],
+
+    "Ruines Sec Sec (slot 4.1)": [0x89, 0x0E],
+    "Route Clair de Lune (slot 4.2)": [0x8D, 0x0A],
+    "Château de Bowser (slot 4.3)": [0x91, 0x0C],
+    "Route Arc-en-Ciel (slot 4.4)": [0x93, 0x0D],
+
+    "GCN Plage Peach (slot 5.1)": [0xA5, 0x10],
+    "DS Cascades Yoshi (slot 5.2)": [0xAD, 0x14],
+    "SNES Vallée Fantôme 2 (slot 5.3)": [0x97, 0x19],
+    "N64 Autodrome Mario (slot 5.4)": [0x9F, 0x1A],
+
+    "N64 Royaume Sorbet (slot 6.1)": [0x9D, 0x1B],
+    "GBA Plage Maskass (slot 6.2)": [0x95, 0x1F],
+    "DS Quartier Delfino (slot 6.3)": [0xAF, 0x17],
+    "GCN Stade Waluigi (slot 6.4)": [0xA9, 0x12],
+
+    "DS Désert du Soleil (slot 7.1)": [0xB1, 0x15],
+    "GBA Château de Bowser 3 (slot 7.2)":[0x9B, 0x1E],
+    "N64 Jungle DK (slot 7.3)": [0xA1, 0x1D],
+    "GCN Circuit Mario (slot 7.4)": [0xA7, 0x11],
+
+    "SNES Circuit Mario 3 (slot 8.1)": [0x99, 0x18],
+    "DS Jardin Peach (slot 8.2)": [0xB3, 0x16],
+    "GCN Montagne DK (slot 8.3)": [0xAB, 0x13],
+    "N64 Château de Bowser (slot 8.4)": [0xA3, 0x1C],
+
+    "Block Plaza (battle slot 1.1)": [0xB7, 0x21],
+    "Quai Delfino (battle slot 1.2)": [0xB5, 0x20],
+    "Stade de Funky Kong (battle slot 1.3)": [0xB9, 0x23],
+    "Roulette Chomp (battle slot 1.4)": [0xBB, 0x22],
+    "Désert Thwomp (battle slot 1.5)": [0xBD, 0x24],
+
+    "SNES Circuit de Bataille 4 (battle slot 2.1)": [0xC3, 0x27],
+    "GBA Circuit de Bataille 3 (battle slot 2.2)": [0xC5, 0x28],
+    "N64 Gratte-ciel (battle slot 2.3)": [0xC7, 0x29],
+    "GCN Cookie Arena (battle slot 2.4)": [0xBF, 0x25],
+    "DS Maison de l'Aube (battle slot 2.5)": [0xC1, 0x26],
+
+    "Colisée Galactique": [0xC9, 0x36],
+}
 
 class main():
     def __init__(self):
@@ -28,8 +84,16 @@ class main():
         self.label_GameInformation.grid(row=1, column=1)
         self.button_ExtractROM = Button(self.frame_ActionGameFile, text="Extraire le jeu", relief=RIDGE, command=self.extract_game)
         self.button_InstallLECODE = Button(self.frame_ActionGameFile, text="Installer LE-CODE", relief=RIDGE, command=self.install_lecode)
-        self.button_EditROM = Button(self.frame_ActionGameFile, text="Modifier la configuration", relief=RIDGE, command=self.edit_game)
-        self.button_PatchROM = Button(self.frame_ActionGameFile, text="Patcher le jeu", relief=RIDGE, command=self.patch_game)
+
+        self.frame_ActionGameEditROM = Frame(self.frame_ActionGameFile)
+        self.button_ImportROM = Button(self.frame_ActionGameEditROM, text="Importer un pack de courses", relief=RIDGE, command=self.import_track_pack)
+        self.button_ImportROM.grid(row=1,column=1, sticky="NEWS")
+        self.button_ExportROM = Button(self.frame_ActionGameEditROM, text="Exporter un pack de courses", relief=RIDGE, command=self.export_track_pack)
+        self.button_ExportROM.grid(row=2,column=1, sticky="NEWS")
+        self.button_ImportMultipleRace = Button(self.frame_ActionGameEditROM, text="Importer plusieurs courses", relief=RIDGE, command=self.import_multiple_race)
+        self.button_ImportMultipleRace.grid(row=3,column=1, sticky="NEWS")
+        self.button_PatchROM = Button(self.frame_ActionGameEditROM, text="Patcher le jeu", relief=RIDGE, command=self.patch_game)
+        self.button_PatchROM.grid(row=4, column=1, sticky="NEWS")
         self.progressbar_Action = ttk.Progressbar(self.frame_ActionGameFile)
         self.label_Action = Label(self.frame_ActionGameFile)
 
@@ -109,22 +173,20 @@ class main():
         self.frame_ActionGameFile.grid(row=2, column=1, sticky = "NEWS")
 
         if self.file_type in ["wbfs", "iso"]:
-            self.button_ExtractROM.grid(row=2, column=1, sticky = "NEWS")
+            self.button_ExtractROM.grid(row=2,column=1,sticky="NEWS")
             self.button_InstallLECODE.grid_forget()
-            self.button_EditROM.grid_forget()
-            self.button_PatchROM.grid_forget()
+            self.frame_ActionGameEditROM.grid_forget()
 
         else:
             self.button_ExtractROM.grid_forget()
             if os.path.exists(f"{self.path}/files/.MKCreator/"):
                 self.button_InstallLECODE.grid_forget()
-                self.button_EditROM.grid(row = 4, column = 1, sticky = "NEWS")
-                self.button_PatchROM.grid_forget()
+                self.frame_ActionGameEditROM.grid(row=4,column=1,sticky="NEWS")
+                self.edit_game()
 
             else:
-                self.button_InstallLECODE.grid(row = 3, column = 1, sticky = "NEWS")
-                self.button_EditROM.grid_forget()
-                self.button_PatchROM.grid_forget()
+                self.button_InstallLECODE.grid(row=3,column=1,sticky="NEWS")
+                self.frame_ActionGameEditROM.grid_forget()
 
 
     def extract_game(self):
@@ -158,7 +220,7 @@ class main():
             self.progressbar_Action.config(mode = "determinate")
             self.label_Action.grid(row = 101, column = 1, sticky = "NEWS")
             self.progressbar_Action.stop()
-            self.progressbar_Action['maximum'] = 56
+            self.progressbar_Action['maximum'] = 57
             self.progressbar_Action["value"] = 0
             self.button_InstallLECODE.grid_forget()
 
@@ -235,19 +297,20 @@ class main():
 
             # correction des courses
             if not(os.path.exists(f"{self.path}/files/.MKCreator/Track/")): os.makedirs(f"{self.path}/files/.MKCreator/Track/")
-
+            if not(os.path.exists(f"{self.path}/files/.MKCreator/Track-Original/")): os.makedirs(f"{self.path}/files/.MKCreator/Track-Original/")
+            if not (os.path.exists(f"{self.path}/files/.MKCreator/auto-add/")): os.makedirs(f"{self.path}/files/.MKCreator/auto-add/")
 
             for file in os.listdir(f"{self.path}/files/Race/Course/"):
                 if os.path.isfile(f"{self.path}/files/Race/Course/{file}"):
                     _, extension = os.path.splitext(file)
                     if extension == ".szs":
                         self.label_Action.config(text=f"Correction de la course {file}...")
-                        shutil.move(f"{self.path}/files/Race/Course/{file}", f"{self.path}/files/.MKCreator/Track/{file}")
+                        shutil.move(f"{self.path}/files/Race/Course/{file}", f"{self.path}/files/.MKCreator/Track-Original/{file}")
 
             # application du patch
             self.label_Action.config(text=f"Patch de LE-CODE.bin")
             p = subprocess.Popen(f"wlect patch ./assets/lecode-PAL.bin -od \"{self.path}/files/rel/lecode-PAL.bin\" --track-dir "+\
-                                 f"\"{self.path}/files/Race/Course\" --copy-tracks \"{self.path}/files/.MKCreator/Track/\" --le-define "+\
+                                 f"\"{self.path}/files/Race/Course\" --copy-tracks \"{self.path}/files/.MKCreator/Track-Original/\" --le-define "+\
                                  f"./assets/CTFILE-default.txt --lpar ./assets/lpar-default.txt --overwrite")
             p.wait()
 
@@ -256,6 +319,12 @@ class main():
             shutil.copytree("./assets/cup_icon/", f"{self.path}/files/.MKCreator/cup_icon/")
             shutil.copy("./assets/config-fr.json", f"{self.path}/files/.MKCreator/config.json")
 
+
+            self.label_Action.config(text=f"Création du dossier auto-add...")
+            self.progressbar_Action.step(1)
+            p = subprocess.Popen(f"wszst autoadd -q \"{self.path}/files/.MKCreator/Track-Original/\" --dest " + \
+                                 f"\"{self.path}/files/.MKCreator/auto-add/\" --remove-dest --preserve")
+            p.wait()
 
             self.progressbar_Action.grid_forget()
             self.label_Action.grid_forget()
@@ -272,8 +341,6 @@ class main():
 
 
     def refresh_cup_menu(self):
-        self.button_PatchROM.grid(row = 5, column = 1, sticky = "NEWS")
-
         for x in range(4):
             for y in range(2):
                 pos_index = (x * 2) + y
@@ -339,8 +406,9 @@ class main():
         tl.title("Nouvelle Coupe")
         tl.resizable(False, False)
 
-        new_icon = self._add_img_raw
-        new_icon_tk = self._add_img
+        cup_id = len(self.config["cup"])
+        new_icon = self.generate_cup_icon(cup_id - 8)
+        new_icon_tk = ImageTk.PhotoImage(new_icon)
 
         def select_icon():
             nonlocal new_icon, new_icon_tk
@@ -356,28 +424,16 @@ class main():
         entry_NewCupName = Entry(tl)
         entry_NewCupName.grid(row=2,column=1,sticky="NEWS")
         Label(tl, text="Choississez une icone pour votre coupe :").grid(row=3, column=1)
-        button_NewCupIcon = Button(tl, image=self._add_img, command=select_icon)
+        button_NewCupIcon = Button(tl, image=new_icon_tk, command=select_icon)
         button_NewCupIcon.grid(row=4, column=1)
 
         def confirm():
-            nonlocal new_icon
+            nonlocal new_icon, cup_id
             cup_name = entry_NewCupName.get()
             if cup_name.replace(" ", "") != "":
 
-                cup_id = len(self.config["cup"])
+                self.new_cup(cup_id, new_icon, cup_name)
 
-                new_icon.save(f"{self.path}/files/.MKCreator/cup_icon/{cup_id}.png")
-                self.config["cup"][str(cup_id)] = {
-                    "name": cup_name,
-                    "locked": False,
-                    "courses": {
-                        "0": {"name":"/", "music": 0x75, "special": 0x08, "new": False},
-                        "1": {"name":"/", "music": 0x75, "special": 0x08, "new": False},
-                        "2": {"name":"/", "music": 0x75, "special": 0x08, "new": False},
-                        "3": {"name":"/", "music": 0x75, "special": 0x08, "new": False},
-                    }
-                }
-                self.save_config()
                 self.refresh_cup_menu()
                 tl.destroy()
                 self.root.focus_force()
@@ -427,68 +483,22 @@ class main():
         tl.title("Modifier la course")
         tl.resizable(False, False)
 
-        track2ID = {
-            "Circuit Luigi (slot 1.1)": [0x75, 0x08],
-            "Prairie Meuh Meuh (slot 1.2)": [0x77, 0x01],
-            "Gorge Champignon (slot 1.3)": [0x79, 0x02],
-            "Usine Toad (slot 1.4)": [0x7B, 0x04],
-
-            "Circuit Mario (slot 2.1)": [0x7D, 0x00],
-            "Supermarché Coco (slot 2.2)": [0x7F, 0x05],
-            "Pic DK (slot 2.3)": [0x81, 0x06],
-            "Mine Wario (slot 2.4)": [0x83, 0x07],
-
-            "Circuit Daisy (slot 3.1)": [0x87, 0x09],
-            "Cap Koopa (slot 3.2)": [0x85, 0x0F],
-            "Bois Vermeil (slot 3.3)": [0x8F, 0x0B],
-            "Volcan Grondant (slot 3.4)": [0x8B, 0x03],
-
-            "Ruines Sec Sec (slot 4.1)": [0x89, 0x0E],
-            "Route Clair de Lune (slot 4.2)": [0x8D, 0x0A],
-            "Château de Bowser (slot 4.3)": [0x91, 0x0C],
-            "Route Arc-en-Ciel (slot 4.4)": [0x93, 0x0D],
-
-            "GCN Plage Peach (slot 5.1)": [0xA5, 0x10],
-            "DS Cascades Yoshi (slot 5.2)": [0xAD, 0x14],
-            "SNES Vallée Fantôme 2 (slot 5.3)": [0x97, 0x19],
-            "N64 Autodrome Mario (slot 5.4)": [0x9F, 0x1A],
-
-            "N64 Royaume Sorbet (slot 6.1)": [0x9D, 0x1B],
-            "GBA Plage Maskass (slot 6.2)": [0x95, 0x1F],
-            "DS Quartier Delfino (slot 6.3)": [0xAF, 0x17],
-            "GCN Stade Waluigi (slot 6.4)": [0xA9, 0x12],
-
-            "DS Désert du Soleil (slot 7.1)": [0xB1, 0x15],
-            "GBA Château de Bowser 3 (slot 7.2)":[0x9B, 0x1E],
-            "N64 Jungle DK (slot 7.3)": [0xA1, 0x1D],
-            "GCN Circuit Mario (slot 7.4)": [0xA7, 0x11],
-
-            "SNES Circuit Mario 3 (slot 8.1)": [0x99, 0x18],
-            "DS Jardin Peach (slot 8.2)": [0xB3, 0x16],
-            "GCN Montagne DK (slot 8.3)": [0xAB, 0x13],
-            "N64 Château de Bowser (slot 8.4)": [0xA3, 0x1C],
-
-            "Block Plaza (battle slot 1.1)": [0xB7, 0x21],
-            "Quai Delfino (battle slot 1.2)": [0xB5, 0x20],
-            "Stade de Funky Kong (battle slot 1.3)": [0xB9, 0x23],
-            "Roulette Chomp (battle slot 1.4)": [0xBB, 0x22],
-            "Désert Thwomp (battle slot 1.5)": [0xBD, 0x24],
-
-            "SNES Circuit de Bataille 4 (battle slot 2.1)": [0xC3, 0x27],
-            "GBA Circuit de Bataille 3 (battle slot 2.2)": [0xC5, 0x28],
-            "N64 Gratte-ciel (battle slot 2.3)": [0xC7, 0x29],
-            "GCN Cookie Arena (battle slot 2.4)": [0xBF, 0x25],
-            "DS Maison de l'Aube (battle slot 2.5)": [0xC1, 0x26],
-
-            "Colisée Galactique": [0xC9, 0x36],
-        }
-
         def select_file():
-            path = filedialog.askopenfilename(filetypes = (("Fichier course", r"*.szs"),))
+            path = filedialog.askopenfilename(filetypes = (("Fichier course", r"*.szs *.wbz"),))
             tl.focus_force()
             if path:
                 if os.path.exists(path):
-                    name = path.split("/")[-1].replace("_", " ").replace(".szs", "")
+                    name = self.get_track_name(path)
+                    Property = path[path.find("[")+1:path.rfind("]")]
+                    try:
+                        r = Property.find("r")
+                        if r != -1:
+                            Type = Property[r+1:r+3]
+                            Type = ((int(Type[0]) - 1) * 4) + (int(Type[1]) - 1)
+                            listbox_MusicType.current(Type)
+                            listbox_TrackType.current(Type)
+                    except: pass
+
                     entry_CoursePath.delete(0, END)
                     entry_CoursePath.insert(0, path)
                     entry_CourseName.delete(0, END)
@@ -515,38 +525,28 @@ class main():
         listbox_TrackType.current(0)
         listbox_TrackType.grid(row=8, column=1, sticky="NEWS", columnspan=2)
 
-        Bool_isTrackNew = BooleanVar(value=False)
+        Bool_isTrackNew = BooleanVar(value=True)
         checkbutton_TrackNew = Checkbutton(tl, text="Marqué comme étant nouveau", variable=Bool_isTrackNew)
         checkbutton_TrackNew.grid(row=9, column=1, columnspan=2)
 
         def confirm():
-            if os.path.exists(entry_CoursePath.get()):
-                _formated_name = entry_CourseName.get().replace(" ", "")
-                if (_formated_name != "") and (_formated_name != "/"):
-                    if listbox_MusicType.get() in track2ID:
-                        if listbox_TrackType.get() in track2ID:
+            if self.new_track(entry_CoursePath.get(),
+                              entry_CourseName.get(),
+                              cup_index,
+                              course_index,
+                              Bool_isTrackNew.get(),
+                              listbox_MusicType.get(),
+                              listbox_TrackType.get()):
 
-                            if not(os.path.exists(f"{self.path}/files/.MKCreator/Track/")):
-                                os.makedirs(f"{self.path}/files/.MKCreator/Track/")
+                tl.destroy()
+                self.root.focus_force()
 
-                            shutil.copy(entry_CoursePath.get(), f"{self.path}/files/.MKCreator/Track/{entry_CourseName.get()}.szs")
-                            self.config["cup"][str(cup_index)]["courses"][str(course_index)] = {
-                                "name": entry_CourseName.get(),
-                                "music": track2ID[listbox_MusicType.get()][0],
-                                "special": track2ID[listbox_TrackType.get()][1],
-                                "new": Bool_isTrackNew.get(),
-                            }
-                            self.save_config()
-                            self.select_cup(cup_index)
-                            tl.destroy()
-                            self.root.focus_force()
-
-                        else: messagebox.showerror("Erreur", "Le type spécial de la map est invalide.")
-                    else: messagebox.showerror("Erreur", "La musique de la map est invalide.")
-                else: messagebox.showerror("Erreur", "Le nom de la course doit être défini.")
-            else: messagebox.showerror("Erreur", "Vous devez sélectionner le fichier .szs de la course.")
 
         Button(tl, text="Confirmer", command=confirm, relief=RIDGE).grid(row=10,column=1, columnspan=2, sticky="E")
+
+
+    def get_track_name(self, path):
+        return path.split("/")[-1].replace("_", " ").replace(".szs", "").replace(".wbz", "").split("(")[0].split("[")[0]
 
 
     def patch_game(self):
@@ -554,8 +554,7 @@ class main():
             self.progressbar_Action.grid(row = 100, column = 1, sticky = "NEWS")
             self.label_Action.grid(row = 101, column = 1)
             self.label_Action.config(text=f"Préparation...")
-            self.button_EditROM.grid_forget()
-            self.button_PatchROM.grid_forget()
+            self.frame_ActionGameEditROM.grid_forget()
             self.progressbar_Action.config(mode = "determinate")
             self.progressbar_Action.stop()
             self.progressbar_Action['maximum'] = 31
@@ -679,14 +678,14 @@ class main():
             self.progressbar_Action.step(1)
             p = subprocess.Popen(
                 f"wlect patch ./assets/lecode-PAL.bin -od \"{self.path}/files/rel/lecode-PAL.bin\" --track-dir " + \
-                f"\"{self.path}/files/Race/Course\" --copy-tracks \"{self.path}/files/.MKCreator/Track/\" --le-define " + \
+                f"\"{self.path}/files/Race/Course\" --copy-tracks \"{self.path}/files/.MKCreator/Track/\" " + \
+                f"--copy-tracks \"{self.path}/files/.MKCreator/Track-Original/\" --le-define " + \
                 f"\"{self.path}/files/.MKCreator/CTFILE.txt\" --lpar ./assets/lpar-default.txt --overwrite")
             p.wait()
 
             self.progressbar_Action.grid_forget()
             self.label_Action.grid_forget()
-            self.button_EditROM.grid(row = 4, column = 1, sticky = "NEWS")
-            self.button_PatchROM.grid(row = 5, column = 1, sticky = "NEWS")
+            self.frame_ActionGameEditROM.grid(row = 4, column = 1, sticky = "NEWS")
 
 
         Thread(target=main).start()
@@ -696,9 +695,194 @@ class main():
         with open(f"{self.path}/files/.MKCreator/config.json", "w") as file:
             json.dump(self.config, file)
 
-#TODO: Icone CTx pour les icones par défaut de course
-#TODO: Importer des groupes entier de course et de coupe
+
+    def import_track_pack(self):
+        def main():
+            path = filedialog.askopenfilename(filetypes = (("Fichier MKCTP", r"*.mkctp"),))
+            if path:
+
+                self.progressbar_Action.grid(row = 100, column = 1, sticky = "NEWS")
+                self.label_Action.grid(row = 101, column = 1)
+                self.label_Action.config(text=f"Importation du pack de courses...")
+                self.frame_ActionGameEditROM.grid_forget()
+                self.progressbar_Action.config(mode = "indeterminate")
+                self.progressbar_Action.start(50)
+
+                shutil.unpack_archive(path, f"{self.path}/files/.MKCreator/", 'zip')
+                if os.path.exists(f"{self.path}/files/.MKCreator/Track-WBZ/"):
+                    for track in os.listdir(f"{self.path}/files/.MKCreator/Track-WBZ/"):
+                        p = subprocess.Popen(f"wszst normalize \"{self.path}/files/.MKCreator/Track-WBZ/{track}\" --szs --overwrite " + \
+                                             f"--DEST \"{self.path}/files/.MKCreator/Track/{track[:-3]}szs\" " + \
+                                             f"--autoadd-path \"{self.path}/files/.MKCreator/auto-add/\"")
+                        p.wait()
+                    shutil.rmtree(f"{self.path}/files/.MKCreator/Track-WBZ/")
+                self.refresh_cup_menu()
+
+            self.progressbar_Action.grid_forget()
+            self.label_Action.grid_forget()
+            self.frame_ActionGameEditROM.grid(row=4,column=1,sticky="NEWS")
+
+        Thread(target=main).start()
+
+
+    def export_track_pack(self):
+        def main():
+            path = filedialog.asksaveasfilename(filetypes=(("Fichier MKCTP", r"*.mkctp"),))  # Mario Kart Creator Track Pack
+            if path:
+
+                self.progressbar_Action.grid(row=100, column=1, sticky="NEWS")
+                self.label_Action.grid(row=101, column=1)
+                self.label_Action.config(text=f"Exportation du pack de courses...")
+                self.frame_ActionGameEditROM.grid_forget()
+                self.progressbar_Action.config(mode="indeterminate")
+                self.progressbar_Action.start(50)
+
+                shutil.copytree(f"{self.path}/files/.MKCreator/", "./.tmp/.MKCreator")
+                shutil.rmtree("./.tmp/.MKCreator/Track-Original/") # Ces courses sont copyright.
+                shutil.rmtree("./.tmp/.MKCreator/auto-add/") # Fichier librairie nécéssaire pour convertir les wbz en szs.
+                if not(os.path.exists("./.tmp/.MKCreator/Track-WBZ/")): os.makedirs("./.tmp/.MKCreator/Track-WBZ/")
+                for track in os.listdir("./.tmp/.MKCreator/Track/"):
+                    p = subprocess.Popen(f"wszst normalize \"./.tmp/.MKCreator/Track/{track}\" --wbz --overwrite " + \
+                                         f"--DEST \"./.tmp/.MKCreator/Track-WBZ/{track[:-3]}wbz\" " + \
+                                         f"--autoadd-path \"{self.path}/files/.MKCreator/auto-add/\"")
+                    p.wait()
+                shutil.rmtree("./.tmp/.MKCreator/Track/")  # Ces courses sont copyright.
+                shutil.make_archive(path, 'zip', "./.tmp/.MKCreator")
+                if not(".zip" in path): path += ".zip"
+                os.rename(path, path.replace(".zip", ".mkctp"))
+                shutil.rmtree("./.tmp/.MKCreator/")
+
+            self.progressbar_Action.grid_forget()
+            self.label_Action.grid_forget()
+            self.frame_ActionGameEditROM.grid(row=4, column=1, sticky="NEWS")
+
+        Thread(target=main).start()
+
+
+    def generate_cup_icon(self, index):
+        cup_icon = Image.new("RGBA", (128, 128))
+        draw = ImageDraw.Draw(cup_icon)
+        font = ImageFont.truetype("./assets/SuperMario256.ttf", 90)
+        draw.text((4-2, 4-2), "CT", (0, 0, 0), font=font)
+        draw.text((4+2, 4-2), "CT", (0, 0, 0), font=font)
+        draw.text((4-2, 4+2), "CT", (0, 0, 0), font=font)
+        draw.text((4+2, 4+2), "CT", (0, 0, 0), font=font)
+
+        draw.text((4, 4), "CT", (255, 165, 0), font=font)
+
+        font = ImageFont.truetype("./assets/SuperMario256.ttf", 60)
+        draw.text((15-2, 80-2), "%03i" % index, (0, 0, 0), font=font)
+        draw.text((15+2, 80-2), "%03i" % index, (0, 0, 0), font=font)
+        draw.text((15-2, 80+2), "%03i" % index, (0, 0, 0), font=font)
+        draw.text((15+2, 80+2), "%03i" % index, (0, 0, 0), font=font)
+
+        draw.text((15, 80), "%03i" % index, (255, 165, 0), font=font)
+
+        return cup_icon
+
+
+    def new_cup(self, cup_id, new_icon, cup_name):
+        new_icon.save(f"{self.path}/files/.MKCreator/cup_icon/{cup_id}.png")
+        self.config["cup"][str(cup_id)] = {
+            "name": cup_name,
+            "locked": False,
+            "courses": {
+                "0": {"name": "/", "music": 0x75, "special": 0x08, "new": False},
+                "1": {"name": "/", "music": 0x75, "special": 0x08, "new": False},
+                "2": {"name": "/", "music": 0x75, "special": 0x08, "new": False},
+                "3": {"name": "/", "music": 0x75, "special": 0x08, "new": False},
+            }
+        }
+        self.save_config()
+
+
+    def new_track(self, path, name, cup_index, course_index, is_new, music_type, track_type):
+        if os.path.exists(path):
+            _formated_name = name.replace(" ", "")
+            if (_formated_name != "") and (_formated_name != "/"):
+                if music_type in track2ID:
+                    if track_type in track2ID:
+
+                        if not (os.path.exists(f"{self.path}/files/.MKCreator/Track/")):
+                            os.makedirs(f"{self.path}/files/.MKCreator/Track/")
+
+                        _, extension = os.path.splitext(path)
+                        if extension == ".wbz":
+                            p = subprocess.Popen(f"wszst normalize \"{path}\" --szs --overwrite " + \
+                                                 f"--DEST \"{self.path}/files/.MKCreator/Track/{name}.szs\" " + \
+                                                 f"--autoadd-path \"{self.path}/files/.MKCreator/auto-add/\"")
+                            p.wait()
+                        elif extension == ".szs":
+                            shutil.copy(path, f"{self.path}/files/.MKCreator/Track/{name}.szs")
+
+                        self.config["cup"][str(cup_index)]["courses"][str(course_index)] = {
+                            "name": name,
+                            "music": track2ID[music_type][0],
+                            "special": track2ID[track_type][1],
+                            "new": is_new,
+                        }
+                        self.save_config()
+                        self.select_cup(cup_index)
+
+                        return True
+
+                    else: messagebox.showerror("Erreur", "Le type spécial de la map est invalide.")
+                else: messagebox.showerror("Erreur", "La musique de la map est invalide.")
+            else: messagebox.showerror("Erreur", "Le nom de la course doit être défini.")
+        else: messagebox.showerror("Erreur", "Vous devez sélectionner le fichier .szs de la course.")
+
+        return False
+
+
+    def import_multiple_race(self):
+        def main():
+            paths = filedialog.askopenfilenames(filetypes = (("Fichier course", r"*.szs *.wbz"),))
+            if paths:
+
+                self.progressbar_Action.grid(row=100, column=1, sticky="NEWS")
+                self.label_Action.grid(row=101, column=1)
+                self.frame_ActionGameEditROM.grid_forget()
+                self.progressbar_Action.config(mode="determinate")
+                self.progressbar_Action['maximum'] = len(paths) + 1
+                self.progressbar_Action["value"] = 0
+
+                for index, path in enumerate(paths):
+                    name = self.get_track_name(path)
+                    self.label_Action.config(text=f"Ajout de la course \"{name}\"...")
+                    self.progressbar_Action.step(1)
+                    course_id = index % 4
+
+                    Type = 0
+                    Property = path[path.find("[") + 1:path.rfind("]")]
+                    try:
+                        r = Property.find("r")
+                        if r != -1:
+                            _Type = Property[r + 1:r + 3]
+                            Type = ((int(_Type[0]) - 1) * 4) + (int(_Type[1]) - 1)
+                    except: pass
+
+                    special_slot = list(track2ID.keys())[Type]
+
+                    if course_id == 0:
+                        cup_id = len(self.config["cup"])
+                        new_icon = self.generate_cup_icon(cup_id)
+                        cup_name = "CT%03i" % cup_id
+                        self.new_cup(cup_id, new_icon, cup_name)
+
+                    self.new_track(path, name, cup_id, course_id, True, special_slot, special_slot)
+
+            self.progressbar_Action.grid_forget()
+            self.label_Action.grid_forget()
+            self.frame_ActionGameEditROM.grid(row=4, column=1, sticky="NEWS")
+
+        Thread(target=main).start()
+
+
 #TODO: Vérifier les overwrites pour éviter les bugs
+#TODO: Améliorer la modification des sous-fichiers des szs
+#TODO: Warning sur les dossier à accent !!! impossible d'importer une course depuis l'un d'eux ! + Installer les outils wszst, ...
+
+
 
 Main = main()
 mainloop()
