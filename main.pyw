@@ -6,6 +6,10 @@ import shutil
 from threading import Thread
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 import json
+import unidecode
+import hashlib
+
+sha1 = lambda x: hashlib.sha1(x.encode()).hexdigest()
 
 track2ID = {
     "Circuit Luigi (slot 1.1)": [0x75, 0x08],
@@ -62,6 +66,9 @@ track2ID = {
 
     "Colisée Galactique": [0xC9, 0x36],
 }
+IDm2track = {v[0]: k for k, v in track2ID.items()}
+IDs2track = {v[1]: k for k, v in track2ID.items()}
+SCORE_ENABLED = True
 
 class main():
     def __init__(self):
@@ -515,19 +522,23 @@ class main():
         entry_CourseName = Entry(tl, width=50)
         entry_CourseName.grid(row=4, column=1, sticky="NEWS", columnspan=2)
 
-        Label(tl, text="Musique de la course :").grid(row=5, column=1, columnspan=2)
+        Label(tl, text="Autheur de la course :").grid(row=5, column=1, columnspan=2)
+        entry_CourseAuthor = Entry(tl, width=50)
+        entry_CourseAuthor.grid(row=6, column=1, sticky="NEWS", columnspan=2)
+
+        Label(tl, text="Musique de la course :").grid(row=7, column=1, columnspan=2)
         listbox_MusicType = ttk.Combobox(tl, width=50, values=list(track2ID.keys()))
         listbox_MusicType.current(0)
-        listbox_MusicType.grid(row=6, column=1, sticky="NEWS", columnspan=2)
+        listbox_MusicType.grid(row=8, column=1, sticky="NEWS", columnspan=2)
 
-        Label(tl, text="Type de la course :\n(généralement indiqué par son créateur)\n(si non spécifié, choisir slot 1.1)").grid(row=7, column=1, columnspan=2)
+        Label(tl, text="Type de la course :\n(généralement indiqué par son créateur)\n(si non spécifié, choisir slot 1.1)").grid(row=9, column=1, columnspan=2)
         listbox_TrackType = ttk.Combobox(tl, width=50, values=list(track2ID.keys()))
         listbox_TrackType.current(0)
-        listbox_TrackType.grid(row=8, column=1, sticky="NEWS", columnspan=2)
+        listbox_TrackType.grid(row=10, column=1, sticky="NEWS", columnspan=2)
 
         Bool_isTrackNew = BooleanVar(value=True)
         checkbutton_TrackNew = Checkbutton(tl, text="Marqué comme étant nouveau", variable=Bool_isTrackNew)
-        checkbutton_TrackNew.grid(row=9, column=1, columnspan=2)
+        checkbutton_TrackNew.grid(row=11, column=1, columnspan=2)
 
         def confirm():
             if self.new_track(entry_CoursePath.get(),
@@ -536,17 +547,29 @@ class main():
                               course_index,
                               Bool_isTrackNew.get(),
                               listbox_MusicType.get(),
-                              listbox_TrackType.get()):
+                              listbox_TrackType.get(),
+                              entry_CourseAuthor.get()):
 
                 tl.destroy()
                 self.root.focus_force()
+
+        _config_track = self.config["cup"][str(cup_index)]["courses"][str(course_index)]
+
+        entry_CoursePath.insert(0, f"{self.path}/files/.MKCreator/Track/{_config_track['name']}.szs")
+        entry_CourseName.insert(0, _config_track["name"])
+        entry_CourseAuthor.insert(0, _config_track["author"])
+
+        Tracks = list(track2ID.keys())
+        listbox_MusicType.current(Tracks.index(IDm2track[_config_track["music"]]))
+        listbox_TrackType.current(Tracks.index(IDs2track[_config_track["special"]]))
+        Bool_isTrackNew.set(_config_track["new"])
 
 
         Button(tl, text="Confirmer", command=confirm, relief=RIDGE).grid(row=10,column=1, columnspan=2, sticky="E")
 
 
     def get_track_name(self, path):
-        return path.split("/")[-1].replace("_", " ").replace(".szs", "").replace(".wbz", "").split("(")[0].split("[")[0]
+        return path.split("/")[-1].replace("_", " ").replace(".szs", "").replace(".wbz", "").split("(")[0].split("[")[0].replace(".le", "").replace(".fix", "").replace(".hp", "")
 
 
     def patch_game(self):
@@ -567,6 +590,9 @@ class main():
                 {"slot": "7040", "name": "Aléatoire: Custom Tracks"},
                 {"slot": "7041", "name": "Aléatoire: Pistes Nouvelles"},
             ]
+
+            Cup_score = {1: [], 2: [], 3:[]}
+
             text_index = 0
             total_cup = len(self.config["cup"])
             ct_icon = Image.new("RGBA", (128, 128*(total_cup+2)))
@@ -585,6 +611,12 @@ class main():
 
                     for course in _cup_config["courses"]:
                         _course_config = _cup_config["courses"][course]
+
+                        if "score" in list(_course_config.keys()):
+                            score = _course_config["score"]
+                            if score > 0: Cup_score[score].append(_course_config)
+                        else: score = 0
+
                         self.label_Action.config(text=f"Configuration de la course {_course_config['name']} (coupe {cup})...")
                         self.progressbar_Action.step(1)
 
@@ -596,9 +628,9 @@ class main():
                                    f" {flag};"+\
                                    f" \"{_course_config['name']}\";"+\
                                    f" \"{_course_config['name']}\";"+\
-                                   f" \"\""
+                                   f" \"{sha1(_course_config['name'])}\""
 
-                        TEXT_DATA.append({"slot": format(0x7044 + text_index, '02x'), "name": _course_config['name']})
+                        TEXT_DATA.append({"slot": format(0x7044 + text_index, '02x'), "name": _course_config['name'], "score": score, "author": _course_config['author']})
                         text_index += 1
 
                         if _course_config["name"] == "/":
@@ -609,11 +641,96 @@ class main():
                             self.label_Action.grid_forget()
                             return
 
+            if False:
+                LE_CODE += f"\n\nC \"Star1\""
+                rank_retro_course = {1: 0, 2: 0, 3: 0, "2+3": 0}
+                for rank in Cup_score:
+                    LE_CODE += f"\nT 145;" + \
+                               f" T43;" + \
+                               f" 0x02;" + \
+                               f" \"star{rank}courses\";" + \
+                               f" \"star{rank}courses\";" + \
+                               f" \"{sha1(f'star{rank}courses')}\""
+
+                    for course in Cup_score[rank]:
+                        flag = "0x00"
+                        if course["new"]: flag = "0x01"
+                        else: rank_retro_course[rank] += 1
+                        LE_CODE += f"\nH {course['music']};" + \
+                                   f" {hex(course['special'])};" + \
+                                   f" 0x04;" + \
+                                   f" \"{course['name']}\";" + \
+                                   f" \"{course['name']}\";" + \
+                                   f" \"{sha1(course['name'])}\""
+
+                LE_CODE += f"\nT 145;" + \
+                           f" T43;" + \
+                           f" 0x02;" + \
+                           f" \"2or3courses\";" + \
+                           f" \"2or3courses\";" + \
+                           f" \"{sha1('2or3courses')}\""
+
+                for course in Cup_score[2] + Cup_score[3]:
+                    flag = "0x00"
+                    if course["new"]: flag = "0x01"
+                    else: rank_retro_course["2+3"] += 1
+                    LE_CODE += f"\nH {course['music']};" + \
+                               f" {hex(course['special'])};" + \
+                               f" 0x04;" + \
+                               f" \"{course['name']}\";" + \
+                               f" \"{course['name']}\";" + \
+                               f" \"{sha1(course['name'])}\""
+
+
+                LE_CODE += f"\n\nC \"Star2\"" # Pas de rétro
+
+                for rank in Cup_score:
+                    LE_CODE += f"\nT 145;" + \
+                               f" T43;" + \
+                               f" 0x02;" + \
+                               f" \"nr{rank}courses\";" + \
+                               f" \"nr{rank}courses\";" + \
+                               f" \"{sha1(f'nr{rank}courses')}\""
+
+                    for course in Cup_score[rank]:
+                        if course["new"]:
+                            LE_CODE += f"\nH {course['music']};" + \
+                                       f" {hex(course['special'])};" + \
+                                       f" 0x04;" + \
+                                       f" \"{course['name']}\";" + \
+                                       f" \"{course['name']}\";" + \
+                                       f" \"{sha1(course['name'])}\""
+
+                LE_CODE += f"\nT 145;" + \
+                           f" T43;" + \
+                           f" 0x02;" + \
+                           f" \"nr2or3courses\";" + \
+                           f" \"nr2or3courses\";" + \
+                           f" \"{sha1('nr2or3courses')}\""
+
+                for course in Cup_score[2] + Cup_score[3]:
+                    if course["new"]:
+                        LE_CODE += f"\nH {course['music']};" + \
+                                   f" {hex(course['special'])};" + \
+                                   f" 0x04;" + \
+                                   f" \"{course['name']}\";" + \
+                                   f" \"{course['name']}\";" + \
+                                   f" \"{sha1(course['name'])}\""
+
+                TEXT_DATA.append({"slot": format(0x7044 + text_index + 0, '02x'), "name": f"courses ★☆☆ ({len(Cup_score[1])})", "score": 0, "author": "-"})
+                TEXT_DATA.append({"slot": format(0x7044 + text_index + 1, '02x'), "name": f"courses ★★☆ ({len(Cup_score[2])})", "score": 0, "author": "-"})
+                TEXT_DATA.append({"slot": format(0x7044 + text_index + 2, '02x'), "name": f"courses ★★★ ({len(Cup_score[3])})", "score": 0, "author": "-"})
+                TEXT_DATA.append({"slot": format(0x7044 + text_index + 3, '02x'), "name": f"courses ★★☆/★★★ ({len(Cup_score[2] + Cup_score[3])})", "score": 0, "author": "-"})
+
+                TEXT_DATA.append({"slot": format(0x7044 + text_index + 4, '02x'), "name": f"(sans rétro) courses ★☆☆ ({len(Cup_score[1]) - rank_retro_course[1]})", "score": 0, "author": "-"})
+                TEXT_DATA.append({"slot": format(0x7044 + text_index + 5, '02x'), "name": f"(sans rétro) courses ★★☆ ({len(Cup_score[2]) - rank_retro_course[2]})", "score": 0, "author": "-"})
+                TEXT_DATA.append({"slot": format(0x7044 + text_index + 6, '02x'), "name": f"(sans rétro) courses ★★★ ({len(Cup_score[3]) - rank_retro_course[3]})", "score": 0, "author": "-"})
+                TEXT_DATA.append({"slot": format(0x7044 + text_index + 7, '02x'), "name": f"(sans rétro) courses ★★☆/★★★ ({len(Cup_score[2] + Cup_score[3]) - rank_retro_course['2+3']})", "score": 0, "author": "-"})
 
             self.label_Action.config(text=f"Création du fichier CTFILE.txt...")
             self.progressbar_Action.step(1)
             shutil.copy("./assets/CTFILE-default.txt", f"{self.path}/files/.MKCreator/CTFILE.txt")
-            with open(f"{self.path}/files/.MKCreator/CTFILE.txt", "a") as CTFile:
+            with open(f"{self.path}/files/.MKCreator/CTFILE.txt", "a", encoding='utf-8') as CTFile:
                 CTFile.write(LE_CODE)
 
 
@@ -624,19 +741,20 @@ class main():
                                  f"--DEST \"{self.path}/files/.MKCreator/ct_icons.tpl\" -x tpl.CMPR --overwrite")
             p.wait()
 
-            for file in ["Channel", "MenuMulti", "MenuSingle"]:
-                self.label_Action.config(text=f"Configuration des icones {file}.szs...")
-                self.progressbar_Action.step(1)
+            for file in ["Channel", "MenuMulti", "MenuSingle", "Race"]:
+                if file != "Race":
+                    self.label_Action.config(text=f"Configuration des icones {file}.szs...")
+                    self.progressbar_Action.step(1)
 
-                p = subprocess.Popen(f"wszst EXTRACT \"{self.path}/files/Scene/UI/{file}.szs\" --DEST \"./.tmp/{file}\"")
-                p.wait()
+                    p = subprocess.Popen(f"wszst EXTRACT \"{self.path}/files/Scene/UI/{file}.szs\" --DEST \"./.tmp/{file}\"")
+                    p.wait()
 
-                shutil.copy(f"{self.path}/files/.MKCreator/ct_icons.tpl", f"./.tmp/{file}/button/timg/ct_icons.tpl")
-                shutil.copy(f"{self.path}/files/.MKCreator/ct_icons.tpl", f"./.tmp/{file}/control/timg/ct_icons.tpl")
+                    shutil.copy(f"{self.path}/files/.MKCreator/ct_icons.tpl", f"./.tmp/{file}/button/timg/ct_icons.tpl")
+                    shutil.copy(f"{self.path}/files/.MKCreator/ct_icons.tpl", f"./.tmp/{file}/control/timg/ct_icons.tpl")
 
-                p = subprocess.Popen(f"wszst CREATE \"./.tmp/{file}\" --DEST \"{self.path}/files/Scene/UI/{file}.szs\" --overwrite")
-                p.wait()
-                shutil.rmtree(f"./.tmp/{file}")
+                    p = subprocess.Popen(f"wszst CREATE \"./.tmp/{file}\" --DEST \"{self.path}/files/Scene/UI/{file}.szs\" --overwrite")
+                    p.wait()
+                    shutil.rmtree(f"./.tmp/{file}")
 
                 for language in "EFGIS":
                     self.label_Action.config(text=f"Configuration des icones {file}_{language}.szs...")
@@ -650,19 +768,39 @@ class main():
                             p = subprocess.Popen(f"wbmgt decode \"{tmp_path}/message/Common.bmg\" --overwrite")
                             p.wait()
 
-                            with open(f"{tmp_path}/message/Common.txt", "a+") as CommonFile:
+                            with open(f"{tmp_path}/message/Common.txt", "a+", encoding="utf-8") as CommonFile:
                                 for line in CommonFile.readlines():
                                     for TEXT in TEXT_DATA:
-                                        print(line[len(f"  {TEXT['slot']}"):])
                                         if line[len(f"  {TEXT['slot']}"):] == f"  {TEXT['slot']}":
+
+                                            starTEXT = " "
+                                            try:
+                                                star = int(TEXT['score'])
+                                                if star > 0:
+                                                    starTEXT = ("★" * star) + ("☆" * (3 - star))
+                                                    starTEXT += " "
+                                            except: pass
+
                                             if line != f"\n  {TEXT['slot']}\t= {TEXT['name']}":
                                                 pointer = CommonFile.tell()
-                                                CommonFile.write(f"\n  {TEXT['slot']}\t= {TEXT['name']}")
+                                                if (file == "Race") & ("author" in TEXT):
+                                                    CommonFile.write(f"\n  {TEXT['slot']}\t={starTEXT}{TEXT['name']}\\npar {TEXT['author']}")
+                                                else: CommonFile.write(f"\n  {TEXT['slot']}\t= {starTEXT}{TEXT['name']}")
                                                 CommonFile.seek(pointer)
                                                 TEXT_DATA.pop(TEXT)
 
                                 for TEXT in TEXT_DATA:
-                                    CommonFile.write(f"\n  {TEXT['slot']}\t= {TEXT['name']}")
+                                    starTEXT = " "
+                                    try:
+                                        star = int(TEXT['score'])
+                                        if star > 0:
+                                            starTEXT = ("★" * star) + ("☆" * (3 - star))
+                                            starTEXT += " "
+                                    except: pass
+                                    print(f"{TEXT['slot']}\t= {starTEXT}{TEXT['name']}")
+                                    if (file == "Race") & ("author" in TEXT):
+                                        CommonFile.write(f"\n  {TEXT['slot']}\t= {starTEXT}{TEXT['name']}\\npar {TEXT['author']}")
+                                    else: CommonFile.write(f"\n  {TEXT['slot']}\t= {starTEXT}{TEXT['name']}")
 
                             p = subprocess.Popen(f"wbmgt encode \"{tmp_path}/message/Common.txt\" --overwrite --le-code")
                             p.wait()
@@ -676,12 +814,12 @@ class main():
 
             self.label_Action.config(text=f"Patch de LE-CODE.bin...")
             self.progressbar_Action.step(1)
-            p = subprocess.Popen(
+            """p = subprocess.Popen(
                 f"wlect patch ./assets/lecode-PAL.bin -od \"{self.path}/files/rel/lecode-PAL.bin\" --track-dir " + \
                 f"\"{self.path}/files/Race/Course\" --copy-tracks \"{self.path}/files/.MKCreator/Track/\" " + \
                 f"--copy-tracks \"{self.path}/files/.MKCreator/Track-Original/\" --le-define " + \
                 f"\"{self.path}/files/.MKCreator/CTFILE.txt\" --lpar ./assets/lpar-default.txt --overwrite")
-            p.wait()
+            p.wait()"""
 
             self.progressbar_Action.grid_forget()
             self.label_Action.grid_forget()
@@ -771,12 +909,12 @@ class main():
         draw.text((4, 4), "CT", (255, 165, 0), font=font)
 
         font = ImageFont.truetype("./assets/SuperMario256.ttf", 60)
-        draw.text((15-2, 80-2), "%03i" % index, (0, 0, 0), font=font)
-        draw.text((15+2, 80-2), "%03i" % index, (0, 0, 0), font=font)
-        draw.text((15-2, 80+2), "%03i" % index, (0, 0, 0), font=font)
-        draw.text((15+2, 80+2), "%03i" % index, (0, 0, 0), font=font)
+        draw.text((5-2, 80-2), "%03i" % index, (0, 0, 0), font=font)
+        draw.text((5+2, 80-2), "%03i" % index, (0, 0, 0), font=font)
+        draw.text((5-2, 80+2), "%03i" % index, (0, 0, 0), font=font)
+        draw.text((5+2, 80+2), "%03i" % index, (0, 0, 0), font=font)
 
-        draw.text((15, 80), "%03i" % index, (255, 165, 0), font=font)
+        draw.text((5, 80), "%03i" % index, (255, 165, 0), font=font)
 
         return cup_icon
 
@@ -796,12 +934,18 @@ class main():
         self.save_config()
 
 
-    def new_track(self, path, name, cup_index, course_index, is_new, music_type, track_type):
+    def new_track(self, path, name, cup_index, course_index, is_new, music_type, track_type, track_author = ""):
         if os.path.exists(path):
             _formated_name = name.replace(" ", "")
             if (_formated_name != "") and (_formated_name != "/"):
                 if music_type in track2ID:
                     if track_type in track2ID:
+                        if not(path.isascii()):
+                            try:
+                                _path = path
+                                path = unidecode.unidecode(path)
+                                os.rename(_path, path)
+                            except: pass
 
                         if not (os.path.exists(f"{self.path}/files/.MKCreator/Track/")):
                             os.makedirs(f"{self.path}/files/.MKCreator/Track/")
@@ -813,13 +957,15 @@ class main():
                                                  f"--autoadd-path \"{self.path}/files/.MKCreator/auto-add/\"")
                             p.wait()
                         elif extension == ".szs":
-                            shutil.copy(path, f"{self.path}/files/.MKCreator/Track/{name}.szs")
+                            if path != f"{self.path}/files/.MKCreator/Track/{name}.szs":
+                                shutil.copy(path, f"{self.path}/files/.MKCreator/Track/{name}.szs")
 
                         self.config["cup"][str(cup_index)]["courses"][str(course_index)] = {
                             "name": name,
                             "music": track2ID[music_type][0],
                             "special": track2ID[track_type][1],
                             "new": is_new,
+                            "author": track_author
                         }
                         self.save_config()
                         self.select_cup(cup_index)
@@ -865,11 +1011,11 @@ class main():
 
                     if course_id == 0:
                         cup_id = len(self.config["cup"])
-                        new_icon = self.generate_cup_icon(cup_id)
+                        new_icon = self.generate_cup_icon(cup_id - 8)
                         cup_name = "CT%03i" % cup_id
                         self.new_cup(cup_id, new_icon, cup_name)
 
-                    self.new_track(path, name, cup_id, course_id, True, special_slot, special_slot)
+                    self.new_track(path, name, cup_id, course_id, True, special_slot, special_slot, "Inconnu")
 
             self.progressbar_Action.grid_forget()
             self.label_Action.grid_forget()
@@ -880,9 +1026,11 @@ class main():
 
 #TODO: Vérifier les overwrites pour éviter les bugs
 #TODO: Améliorer la modification des sous-fichiers des szs
-#TODO: Warning sur les dossier à accent !!! impossible d'importer une course depuis l'un d'eux ! + Installer les outils wszst, ...
+#TODO: Warning Installer les outils wszst, ...
+#TODO: Bouton réinitilialisé le jeu
 
-
+#DONE: Les .fix, .hp & .le sont automatiquement supprimés dans les noms des courses
+#DONE: L'importation de plusieurs courses verra ses icônes de CT commencer à 1
 
 Main = main()
 mainloop()
